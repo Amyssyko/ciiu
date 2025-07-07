@@ -1,0 +1,74 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Editor settings
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+
+# Python dependency/environment files
+*.env
+*.env.*
+*.log
+*.pot
+*.pyc
+
+# Test and coverage outputs
+.coverage
+coverage.xml
+htmlcov/
+.tox/
+.pytest_cache/
+
+# mypy, pyright, pylint, etc
+.mypy_cache/
+.dmypy.json
+.pyre/
+.pytype/
+
+# Jupyter notebook checkpoints
+.ipynb_checkpoints
+
+# FastAPI cache (if used)
+*.sqlite3
+
+# Build / dist
+build/
+dist/
+*.egg-info/
+
+# FAISS index or model cache
+*.faiss
+*.npy
+*.npz
+
+# VS Code dev container
+.devcontainer/
+
+# Temporary files
+*.bak
+*.tmp
+*.swp
+*.swo
+
+# Poetry (if used)
+poetry.lock
+
+# PyInstaller
+*.spec
+
+# Local data
+#ciiu.xlsx
