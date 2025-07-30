@@ -4,7 +4,7 @@ from .data_loader import cargar_datos
 from fastapi import APIRouter, HTTPException
 from .models import Categoria, CiiuRequest, CiiuResults, ErrorResponse, CiiuResponse
 from .utils import limpiar_texto
-from .config import EXCEL_CIIU_CACPE_PATH, EXCEL_CIIU_PATH
+from .config import EXCEL_CIIU_V4_PATH, EXCEL_CIIU_V2_PATH
 import faiss
 import polars as pl
 
@@ -12,24 +12,24 @@ router = APIRouter()
 
 # Globales (podrías mover a un estado compartido en memoria si escalas)
 
-ciiu = cargar_datos(path=EXCEL_CIIU_PATH)
-ciiu_cacpe = cargar_datos(path=EXCEL_CIIU_CACPE_PATH)
+ciiu_v4 = cargar_datos(path=EXCEL_CIIU_V4_PATH)
+ciiu_v2 = cargar_datos(path=EXCEL_CIIU_V2_PATH)
 
 model = cargar_modelo()
 
-embeddings_ciiu = generar_embeddings(model, ciiu["descripcion_limpia"].to_list())
-embeddings_ciiu_cacpe = generar_embeddings(model, ciiu_cacpe["descripcion_limpia"].to_list())
+embeddings_ciiu_v4 = generar_embeddings(model, ciiu_v4["descripcion_limpia"].to_list())
+embeddings_ciiu_v2 = generar_embeddings(model, ciiu_v2["descripcion_limpia"].to_list())
 
-index_ciiu = construir_index(embeddings_ciiu, ciiu)
-index_ciiu_cacpe = construir_index(embeddings_ciiu_cacpe, ciiu_cacpe)
+index_ciiu_v4 = construir_index(embeddings_ciiu_v4, ciiu_v4)
+index_ciiu_v2 = construir_index(embeddings_ciiu_v2, ciiu_v2)
 
-hashes_ciiu = ciiu.select(pl.col("codigo")).to_series().map_elements(
+hashes_ciiu = ciiu_v4.select(pl.col("codigo")).to_series().map_elements(
     hash, return_dtype=pl.Int64).to_list()
-hashes_ciiu_cacpe = ciiu_cacpe.select(pl.col("codigo")).to_series().map_elements(
+hashes_ciiu_v2 = ciiu_v2.select(pl.col("codigo")).to_series().map_elements(
     hash, return_dtype=pl.Int64).to_list()
 
 
-@router.post("/buscar_ciiu", response_model=CiiuResults, responses={404:{"model":ErrorResponse}})
+@router.post("/buscar_ciiu_v4", response_model=CiiuResults, responses={404:{"model":ErrorResponse}})
 def buscar_ciiu(req: CiiuRequest):
     texto = limpiar_texto(req.descripcion)
 
@@ -43,12 +43,12 @@ def buscar_ciiu(req: CiiuRequest):
             400, "El número de resultados debe ser mayor que 0.")
     if not (0 <= req.umbral_similitud <= 1):
         raise HTTPException(400, "El umbral debe estar entre 0 y 1.")
-    if req.categoria not in ["TODOS"] + ciiu["categoria"].unique().to_list():
+    if req.categoria not in ["TODOS"] + ciiu_v4["categoria"].unique().to_list():
         raise HTTPException(400, "Categoría no válida.")
 
     emb = model.encode([texto], convert_to_numpy=True)
     faiss.normalize_L2(emb)
-    D, I = index_ciiu.search(emb, req.top_n * 5)
+    D, I = index_ciiu_v4.search(emb, req.top_n * 5)
 
     resultados = []
     for dist, idx_hash in zip(D[0], I[0]):
@@ -59,9 +59,9 @@ def buscar_ciiu(req: CiiuRequest):
         except ValueError:
             continue
 
-        fila = ciiu.row(idx)
+        fila = ciiu_v4.row(idx)
         # Filtro por categoría solo si no es "TODOS"
-        if req.categoria != "TODOS" and fila[ciiu.columns.index("categoria")] != req.categoria:
+        if req.categoria != "TODOS" and fila[ciiu_v4.columns.index("categoria")] != req.categoria:
             continue
 
         resultados.append(CiiuResponse(
@@ -80,8 +80,8 @@ def buscar_ciiu(req: CiiuRequest):
     return CiiuResults(resultados=resultados)
 
 
-@router.post("/buscar_ciiu_cacpe", response_model=CiiuResults, responses={404:{"model":ErrorResponse}})
-def buscar_ciiu_cacpe(req: CiiuRequest):
+@router.post("/buscar_ciiu_v2", response_model=CiiuResults, responses={404:{"model":ErrorResponse}})
+def buscar_ciiu_v2(req: CiiuRequest):
     texto = limpiar_texto(req.descripcion)
 
     if not texto:
@@ -94,25 +94,25 @@ def buscar_ciiu_cacpe(req: CiiuRequest):
             400, "El número de resultados debe ser mayor que 0.")
     if not (0 <= req.umbral_similitud <= 1):
         raise HTTPException(400, "El umbral debe estar entre 0 y 1.")
-    if req.categoria not in ["TODOS"] + ciiu_cacpe["categoria"].unique().to_list():
+    if req.categoria not in ["TODOS"] + ciiu_v2["categoria"].unique().to_list():
         raise HTTPException(400, "Categoría no válida.")
 
     emb = model.encode([texto], convert_to_numpy=True)
     faiss.normalize_L2(emb)
-    D, I = index_ciiu_cacpe.search(emb, req.top_n * 5)
+    D, I = index_ciiu_v2.search(emb, req.top_n * 5)
 
     resultados = []
     for dist, idx_hash in zip(D[0], I[0]):
         if dist < req.umbral_similitud:
             continue
         try:
-            idx = hashes_ciiu_cacpe.index(idx_hash)
+            idx = hashes_ciiu_v2.index(idx_hash)
         except ValueError:
             continue
 
-        fila = ciiu_cacpe.row(idx)
+        fila = ciiu_v2.row(idx)
         # Filtro por categoría solo si no es "TODOS"
-        if req.categoria != "TODOS" and fila[ciiu_cacpe.columns.index("categoria")] != req.categoria:
+        if req.categoria != "TODOS" and fila[ciiu_v2.columns.index("categoria")] != req.categoria:
             continue
 
         resultados.append(CiiuResponse(
