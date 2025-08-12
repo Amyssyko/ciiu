@@ -70,5 +70,5 @@ poetry.lock
 # PyInstaller
 *.spec
 
-# Local data
-#ciiu.xlsx
+# Github
+*.github/
