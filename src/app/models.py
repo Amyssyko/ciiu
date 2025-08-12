@@ -23,14 +23,14 @@ class Categoria(str, Enum):
 class CiiuRequest(BaseModel):
     descripcion: str
     top_n: int = 7
-    categoria:  Optional[Categoria] = Categoria.TODOS
+    categoria:  Optional[Categoria] = Categoria.ACTIVIDAD
     umbral_similitud: float = 0.6
 
 
 class CiiuResponse(BaseModel):
     codigo: str
     descripcion: str
-    categoria: Categoria | None = None
+    categoria: Categoria
     similitud: float
 
 

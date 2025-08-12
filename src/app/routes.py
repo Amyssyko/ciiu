@@ -3,7 +3,7 @@ from .embeddings import cargar_modelo, generar_embeddings
 from .data_loader import cargar_datos
 from fastapi import APIRouter, HTTPException
 from .models import Categoria, CiiuRequest, CiiuResults, ErrorResponse, CiiuResponse
-from .utils import limpiar_texto
+from .utils import normalize_for_nlp
 from .config import EXCEL_CIIU_V4_PATH, EXCEL_CIIU_V2_PATH
 import faiss
 import polars as pl
@@ -17,8 +17,10 @@ ciiu_v2 = cargar_datos(path=EXCEL_CIIU_V2_PATH)
 
 model = cargar_modelo()
 
-embeddings_ciiu_v4 = generar_embeddings(model, ciiu_v4["descripcion_limpia"].to_list())
-embeddings_ciiu_v2 = generar_embeddings(model, ciiu_v2["descripcion_limpia"].to_list())
+embeddings_ciiu_v4 = generar_embeddings(
+    model, ciiu_v4["descripcion_limpia"].to_list())
+embeddings_ciiu_v2 = generar_embeddings(
+    model, ciiu_v2["descripcion_limpia"].to_list())
 
 index_ciiu_v4 = construir_index(embeddings_ciiu_v4, ciiu_v4)
 index_ciiu_v2 = construir_index(embeddings_ciiu_v2, ciiu_v2)
@@ -29,9 +31,9 @@ hashes_ciiu_v2 = ciiu_v2.select(pl.col("codigo")).to_series().map_elements(
     hash, return_dtype=pl.Int64).to_list()
 
 
-@router.post("/buscar_ciiu_v4", response_model=CiiuResults, responses={404:{"model":ErrorResponse}})
+@router.post("/buscar_ciiu_v4", response_model=CiiuResults, responses={404: {"model": ErrorResponse}})
 def buscar_ciiu(req: CiiuRequest):
-    texto = limpiar_texto(req.descripcion)
+    texto = normalize_for_nlp(req.descripcion)
 
     if not texto:
         raise HTTPException(400, "La descripción no puede estar vacía.")
@@ -80,9 +82,9 @@ def buscar_ciiu(req: CiiuRequest):
     return CiiuResults(resultados=resultados)
 
 
-@router.post("/buscar_ciiu_v2", response_model=CiiuResults, responses={404:{"model":ErrorResponse}})
+@router.post("/buscar_ciiu_v2", response_model=CiiuResults, responses={404: {"model": ErrorResponse}})
 def buscar_ciiu_v2(req: CiiuRequest):
-    texto = limpiar_texto(req.descripcion)
+    texto = normalize_for_nlp(req.descripcion)
 
     if not texto:
         raise HTTPException(400, "La descripción no puede estar vacía.")
