@@ -5,24 +5,30 @@ Este repositorio contiene el proyecto **CIIU**, una API para búsqueda semántic
 ## 📁 Estructura del Proyecto
 
 ```
-ciiu.iml                # Archivo de configuración del proyecto (IDE)
-ciiu.sql                # Script o base de datos SQL relacionada con CIIU
-ciiu.xlsx               # Archivo Excel con datos CIIU versión 4.0
-main.py                 # Script principal, ejemplo en un solo archivo
-requirements.txt        # Dependencias del proyecto
-src/                    # Código fuente principal
-  └─ run.py             # Script para ejecutar la aplicación
-   └─ app/               # Módulo principal de la aplicación
-      ├─ __init__.py    # Inicialización del módulo
-      ├─ config.py      # Configuración de la aplicación
-      ├─ data_loader.py # Carga y procesamiento de datos
-      ├─ embeddings.py  # Generación y manejo de embeddings
-      ├─ faiss_index.py # Indexación y búsqueda con FAISS
-      ├─ search_service.py # Servicio central con datos, modelo, índices y lógica de búsqueda
-      ├─ main.py        # Punto de entrada de la app
-      ├─ models.py      # Definición de modelos de datos
-      ├─ routes.py      # Definición de rutas/endpoints
-      ├─ utils.py       # Utilidades y funciones auxiliares
+ciiu.iml                 # Archivo de configuración del proyecto (IDE)
+ciiu.sql                 # Script o base de datos SQL relacionada con CIIU
+ciiu.xlsx                # Datos CIIU versión 4.0
+ciiu_2.0.xlsx            # Datos CIIU versión 2.0
+descripciones.xlsx       # (Opcional) Corpus extra para expansión de consulta
+LICENSE                  # Licencia
+README.md                # Documentación del proyecto
+requirements.txt         # Dependencias del proyecto
+main.py                  # Script principal (ejemplo)
+.github/
+└─ copilot-instructions.md # Guía para agentes de IA (opcional)
+src/                     # Código fuente principal
+├─ run.py                # Script para ejecutar la aplicación
+└─ app/                  # Módulo principal de la aplicación
+	├─ __init__.py        # Inicialización del módulo
+	├─ config.py          # Configuración de la aplicación
+	├─ data_loader.py     # Carga y procesamiento de datos
+	├─ embeddings.py      # Generación y manejo de embeddings
+	├─ faiss_index.py     # Indexación y búsqueda con FAISS
+	├─ search_service.py  # Servicio central con datos, modelo, índices y lógica de búsqueda
+	├─ main.py            # Punto de entrada de la app
+	├─ models.py          # Definición de modelos de datos
+	├─ routes.py          # Definición de rutas/endpoints
+	└─ utils.py           # Utilidades y funciones auxiliares
 ```
 
 ## 🚀 ¿Cómo empezar?
@@ -59,10 +65,11 @@ Notas:
 
 - FastAPI en `src/app`, con endpoints en `routes.py`.
 - Servicio central `search_service.py` que al importarse:
-  - Carga datos CIIU v4/v2 desde Excel (`data_loader.py` con Polars).
-  - Normaliza descripciones con `utils.normalize_for_nlp` (minúsculas, acentos manejados).
-  - Carga el modelo de embeddings (`embeddings.py`, por defecto `sentence-transformers/paraphrase-multilingual-mpnet-base-v2`).
-  - Genera embeddings y construye índices FAISS (`IndexFlatIP` + `faiss.normalize_L2`).
+- Carga datos CIIU v4/v2 desde Excel (`data_loader.py` con Polars).
+- Normaliza descripciones con `utils.normalize_for_nlp` (minúsculas, acentos manejados).
+- Carga el modelo de embeddings (`embeddings.py`, por defecto `sentence-transformers/paraphrase-multilingual-mpnet-base-v2`).
+- Genera embeddings y construye índices FAISS (`IndexFlatIP` + `faiss.normalize_L2`).
+- (Opcional) Carga un corpus de descripciones adicionales desde `descripciones.xlsx` para enriquecer la consulta (expansión semántica sin alterar los índices oficiales).
 - Métrica: producto interno sobre vectores L2-normalizados (≈ coseno).
 - IDs en FAISS: `hash(codigo)` mapeados a filas del DataFrame.
 
@@ -83,6 +90,7 @@ Endpoints:
 
 - `POST /buscar_ciiu_v4`
 - `POST /buscar_ciiu_v2`
+- `POST /recargar_indices` (reconstruye índices tras cambios en archivos)
 
 Request (CiiuRequest):
 
@@ -135,14 +143,21 @@ Patrón de búsqueda (resumen):
 3. Buscar: `D, I = index.search(emb, k)` con `k = top_n * 5`
 4. Mapear `I` (ids hash) a filas y filtrar por `umbral_similitud` y `categoria`.
 
+### Descripciones adicionales (expansión de consulta)
+
+- Archivo esperado: `descripciones.xlsx` en la raíz del proyecto (o definir la ruta con la variable de entorno `CIIU_DESCRIPCIONES_PATH`).
+- Estructura mínima: columna `descripcion` (o `DESCRIPCION`) con textos libres.
+- Uso: al iniciar, el servicio precalcula embeddings de estas descripciones y, durante la búsqueda, concatena hasta 3 frases relevantes al texto de consulta para mejorar el contexto.
+- Actualización en caliente: tras modificar `descripciones.xlsx`, invocar `POST /recargar_indices` para reconstruir el corpus extra sin reiniciar el servidor.
+
 ## 🧪 Prueba rápida
 
 Con el servidor levantado (`uvicorn src.app.main:app --reload`), acceder a `http://localhost:8000/docs` y utilizar el try-out de Swagger. Se debe tener en cuenta que "maíz" y "maiz" se comportan de forma similar gracias a la normalización.
 
 ## ⚠️ Advertencias
 
-- Asegúrate de que los embeddings de consulta sean `float32` y con shape `(1, dim)` antes de llamar a FAISS; el código ya aplica `faiss.normalize_L2`.
-- Si cambias `EMBEDDING_MODEL` o la normalización en `utils.normalize_for_nlp`, reinicia para regenerar embeddings e índices.
+- Asegurarse de que los embeddings de consulta sean `float32` y con shape `(1, dim)` antes de llamar a FAISS; el código ya aplica `faiss.normalize_L2`.
+- Si se cambia `EMBEDDING_MODEL` o la normalización en `utils.normalize_for_nlp`, reiniciar para regenerar embeddings e índices.
 - Los DataFrames deben tener columnas: `codigo`, `descripcion`, `descripcion_limpia`, `categoria`.
 - La carga inicial es pesada (modelo + embeddings + índices); se realiza una vez al importar el servicio.
 
