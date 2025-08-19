@@ -52,6 +52,19 @@ def normalize_text(text: str) -> str:
 
 
 def normalize_for_nlp(text: str) -> str:
+    """Normaliza texto para NLP manteniendo legibilidad en español.
+
+    - Convierte a minúsculas.
+    - Sustituye vocales acentuadas y diéresis por su forma simple (maíz→maiz, pingüino→pinguino).
+    - Conserva puntuación básica (.,!?¿¡) y elimina otros símbolos.
+    - Colapsa espacios múltiples.
+
+    Args:
+        text: Texto de entrada.
+
+    Returns:
+        Texto normalizado apto para embeddings y coincidencias robustas.
+    """
     # Minúsculas
     text = text.lower()
 
